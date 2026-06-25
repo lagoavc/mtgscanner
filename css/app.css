@@ -114,10 +114,11 @@ header h1{font-size:18px;font-weight:700;color:var(--accent);letter-spacing:1px}
 .dt-row{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--surface2);border-radius:8px;font-size:13px}
 .dt-row label{color:var(--text2);font-weight:500;flex-shrink:0}
 .dt-row span{color:var(--text);font-weight:600;text-align:right;word-break:break-word;max-width:65%}
-.dt-price-row span{color:var(--accent2);font-size:16px;font-weight:700}
+.dt-price-row span{color:var(--accent2);font-size:16px;font-weight:700;padding-right:28px}
 .dt-muted span{font-size:11px;color:var(--text2);font-weight:400}
+.dt-price-row{position:relative}
 
-.dt-refresh-btn{background:none;border:none;color:var(--accent2);cursor:pointer;font-size:18px;line-height:1;padding:2px 6px;border-radius:4px;transition:background 0.15s}
+.dt-refresh-btn{background:none;border:none;color:var(--accent2);cursor:pointer;font-size:18px;line-height:1;padding:2px 6px;border-radius:4px;transition:background 0.15s;position:absolute;right:8px;top:50%;transform:translateY(-50%)}
 .dt-refresh-btn:active{background:rgba(255,255,255,0.1)}
 
 .delete-btn{background:none;border:none;color:var(--danger);font-size:18px;cursor:pointer;padding:0 4px}

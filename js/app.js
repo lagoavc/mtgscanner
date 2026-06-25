@@ -439,11 +439,11 @@ function sortCards() {
   });
 }
 
-$$('.sort-btn').forEach(btn => {
+$$$('.sort-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     if (btn.dataset.sort === sortKey) return;
     sortKey = btn.dataset.sort;
-    $$('.sort-btn').forEach(b => b.classList.toggle('active', b.dataset.sort === sortKey));
+    $$$('.sort-btn').forEach(b => b.classList.toggle('active', b.dataset.sort === sortKey));
     sortCards();
     renderCollection();
   });
