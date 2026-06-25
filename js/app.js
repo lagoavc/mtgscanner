@@ -253,8 +253,8 @@ function parseOCROutput(text) {
       break;
     }
 
-    // 2) standalone number (only 2-3 digits, not a year)
-    m = line.match(/(\d{2,3})/);
+    // 2) standalone number (2-4 digits, not a year like 2026)
+    m = line.match(/(\d{2,4})/);
     if (m && !looksLikeYear(m[1])) {
       const num = m[1];
       // check this line for a set code
@@ -281,7 +281,7 @@ function parseOCROutput(text) {
           if (j < footerStart || j >= lines.length) continue;
           const nm = lines[j].match(/(\d{1,4})\s*\/\s*(\d{1,4})/);
           if (nm) { result.number = nm[1] + '/' + nm[2]; break; }
-          const sn = lines[j].match(/(\d{2,3})/);
+          const sn = lines[j].match(/(\d{2,4})/);
           if (sn && !looksLikeYear(sn[1])) { result.number = sn[1]; break; }
         }
         if (result.number) break;
