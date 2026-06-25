@@ -157,7 +157,9 @@ async function ocrSpace(imageData, label) {
   let text = data.ParsedResults?.[0]?.ParsedText || '';
   text = text.replace(/\r/g, '');
   console.log(`[OCR ${label}]`, text.slice(0, 300));
-  return parseOCROutput(text);
+  const parsed = parseOCROutput(text);
+  logOcr(text, parsed);
+  return parsed;
 }
 
 function normalizeNumber(n) {
@@ -167,6 +169,18 @@ function normalizeNumber(n) {
 function parseCollectorNumber(raw) {
   const m = raw.match(/^0*(\d+)\/?\d*$/);
   return m ? m[1] : raw;
+}
+
+// local dev only: logs OCR to server.py terminal
+function logOcr(raw, parsed) {
+  const u = window.location.href;
+  if (u.startsWith('http://localhost') || u.startsWith('http://192.') || u.startsWith('http://10.') || u.startsWith('http://172.')) {
+    fetch('/log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ raw, name: parsed.name, number: parsed.number, set: parsed.set })
+    }).catch(() => {});
+  }
 }
 
 function parseOCROutput(text) {
@@ -222,16 +236,20 @@ function parseOCROutput(text) {
   }
 
   function collectNum(str) {
-    // tries to extract a collector number from a string
-    // handles: "123/280", "c0053", "u53", "r 123/280"
-    const clean = str.replace(/[cCuumMrR]\s*/, ''); // strip rarity prefix
-    let m = clean.match(/(\d{1,4})\s*\/\s*(\d{1,4})/);
-    if (m) return { num: m[1] + '/' + m[2], idx: m.index };
-    const norm = normalizeNumber(clean);
+    // returns the FIRST number-like pattern found in str
+    // priority: (rarity?)number/total  >  plain number (2+ digits, not a year)
+    // rarity prefix = c/C/u/U/m/M/r/R
+    // normalizeNumber is NOT used for matching — it would create spurious
+    // digits from letters (O→0, S→5) and match "NICHOLAS" → "NICH0LA5".
+    // Instead, raw digits are matched first, then normalized for output.
+    const stripped = str.replace(/^[cCuumMrR]\s*/, '');
+    let m = stripped.match(/(\d{1,4})\s*\/\s*(\d{1,4})/);
+    if (m) return { num: normalizeNumber(m[1]) + '/' + normalizeNumber(m[2]), idx: m.index };
+    const norm = normalizeNumber(stripped);
     m = norm.match(/(\d{1,4})\s*\/\s*(\d{1,4})/);
     if (m) return { num: m[1] + '/' + m[2], idx: m.index };
-    m = norm.match(/(\d{1,4})/);
-    if (m && !looksLikeYear(m[1])) return { num: m[1], idx: m.index };
+    m = stripped.match(/(\d{2,4})/);
+    if (m && !looksLikeYear(m[1])) return { num: normalizeNumber(m[1]), idx: m.index };
     return null;
   }
 
@@ -267,6 +285,15 @@ function parseOCROutput(text) {
     for (let i = 0; i < lines.length; i++) {
       const cn = collectNum(lines[i]);
       if (cn) { result.number = cn.num; break; }
+    }
+  }
+
+  // Last resort: any 1+ digit sequence at all
+  if (!result.number) {
+    for (let i = 0; i < lines.length; i++) {
+      const stripped = lines[i].replace(/^[cCuumMrR]\s*/, '');
+      const m = stripped.match(/(\d+)/);
+      if (m) { result.number = m[1]; break; }
     }
   }
 
