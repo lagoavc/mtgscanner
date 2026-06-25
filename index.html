@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#1a1a2e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<title>MTGScanner</title>
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>MTGScanner</h1>
+    <div class="header-actions">
+      <span class="badge" id="count-badge">0</span>
+      <button id="btn-help" class="icon-btn" title="Ajuda">&#9432;</button>
+      <button id="btn-list" class="icon-btn" title="Ver lista">&#9776;</button>
+    </div>
+  </header>
+
+  <main id="camera-view">
+    <video id="video-camera" autoplay playsinline muted></video>
+    <div id="frame-guide">
+      <div class="corner tl"></div>
+      <div class="corner tr"></div>
+      <div class="corner bl"></div>
+      <div class="corner br"></div>
+      <p class="hint">Enquadre a carta Magic</p>
+    </div>
+    <div id="camera-controls">
+      <button id="btn-capture" class="capture-btn" aria-label="Capturar"></button>
+      <button id="btn-fullscreen" class="fs-btn" aria-label="Ecrã inteiro">
+        <svg viewBox="0 0 24 24" width="26" height="26" fill="#fff">
+          <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>
+        </svg>
+      </button>
+    </div>
+    <div id="camera-error" class="hidden">
+      <p>&#9888; Câmara indisponível</p>
+      <label class="btn">
+        Selecionar Foto
+        <input type="file" id="file-input" accept="image/*" capture="environment" hidden>
+      </label>
+    </div>
+  </main>
+
+  <div id="modal-overlay" class="hidden"></div>
+
+  <div id="panel-review" class="slide-panel">
+    <div class="panel-handle"></div>
+    <div class="panel-header">
+      <h2>Revisar Carta</h2>
+      <button class="btn-close" id="close-review">&times;</button>
+    </div>
+    <div class="panel-body">
+      <div class="captured-preview">
+        <img id="captured-img" alt="">
+      </div>
+      <div id="detected-info">
+        <div class="field">
+          <label>Nome da Carta</label>
+          <input type="text" id="field-name" placeholder="Ex: Black Lotus">
+        </div>
+        <div class="field">
+          <label>Expansão</label>
+          <input type="text" id="field-set" placeholder="Ex: Murders at Karlov Manor">
+        </div>
+        <div class="field">
+          <label>N&ordm; Colecionador</label>
+          <input type="text" id="field-number" placeholder="Ex: 123/280">
+        </div>
+        <button id="btn-search" class="btn primary full">&#128270; Pesquisar</button>
+      </div>
+      <div id="search-results" class="hidden"></div>
+      <div id="card-details" class="hidden">
+        <div class="form-row">
+          <div class="field">
+            <label>Estado</label>
+            <select id="field-condition">
+              <option value="MT">Mint</option>
+              <option value="NM" selected>Near Mint</option>
+              <option value="EX">Excellent</option>
+              <option value="GD">Good</option>
+              <option value="LP">Light Played</option>
+              <option value="PL">Played</option>
+              <option value="PO">Poor</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Idioma</label>
+            <select id="field-language">
+              <option value="English">English</option>
+              <option value="French">Fran&ccedil;ais</option>
+              <option value="German">Deutsch</option>
+              <option value="Spanish">Espa&ntilde;ol</option>
+              <option value="Italian">Italiano</option>
+              <option value="Portuguese">Portugu&ecirc;s</option>
+              <option value="Japanese">日本語</option>
+              <option value="Korean">한국어</option>
+              <option value="Chinese Simplified">简体中文</option>
+              <option value="Chinese Traditional">繁體中文</option>
+              <option value="Russian">Русский</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="field">
+            <label>Pre&ccedil;o (&euro;)</label>
+            <input type="number" id="field-price" step="0.01" min="0" value="0.00">
+          </div>
+          <div class="field">
+            <label>Quantidade</label>
+            <input type="number" id="field-qty" min="1" value="1">
+          </div>
+        </div>
+        <label class="checkbox-field">
+          <input type="checkbox" id="field-foil">
+          Foil
+        </label>
+        <button id="btn-add" class="btn primary full">&#9989; Adicionar &agrave; Lista</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="panel-detail" class="slide-panel">
+    <div class="panel-handle"></div>
+    <div class="panel-header">
+      <h2>Detalhes da Carta</h2>
+      <button class="btn-close" id="close-detail">&times;</button>
+    </div>
+    <div class="panel-body detail-body">
+      <div class="dt-image-wrap">
+        <img id="dt-image" alt="" onerror="this.style.display='none'">
+      </div>
+      <div class="dt-fields">
+        <div class="dt-row"><label>Nome</label><span id="dt-name"></span></div>
+        <div class="dt-row"><label>Expans&atilde;o</label><span id="dt-set"></span></div>
+        <div class="dt-row"><label>N&ordm;</label><span id="dt-number"></span></div>
+        <div class="dt-row"><label>Estado</label><span id="dt-condition"></span></div>
+        <div class="dt-row"><label>Idioma</label><span id="dt-language"></span></div>
+        <div class="dt-row"><label>Quantidade</label><span id="dt-quantity"></span></div>
+        <div class="dt-row"><label>Foil</label><span id="dt-foil-row"></span></div>
+        <div class="dt-row dt-price-row"><label>Teu Pre&ccedil;o</label><span id="dt-user-price"></span></div>
+        <div class="dt-row dt-price-row"><label>Scryfall Avg</label><span id="dt-cm-price"></span></div>
+        <div class="dt-row dt-muted"><label>Pre&ccedil;o atualizado</label><span id="dt-price-updated"></span></div>
+      </div>
+    </div>
+    <div class="panel-footer">
+      <button id="detail-edit" class="btn primary half">&#9998; Editar</button>
+      <button id="detail-delete" class="btn danger half">&#128465; Remover</button>
+    </div>
+  </div>
+
+  <div id="panel-list" class="slide-panel">
+    <div class="panel-handle"></div>
+    <div class="panel-header">
+      <h2>Lista de Cartas</h2>
+      <button class="btn-close" id="close-list">&times;</button>
+    </div>
+    <div class="panel-body">
+      <div id="empty-msg" class="empty-state">
+        <p>Nenhuma carta na cole&ccedil;&atilde;o.</p>
+        <label class="btn" style="margin-top:12px;cursor:pointer">&#128194; Importar Backup
+          <input type="file" id="file-import-json-empty" accept=".json" hidden>
+        </label>
+      </div>
+      <div id="list-content" class="hidden">
+        <div id="sort-bar">
+          <button class="sort-btn active" data-sort="name-asc">Nome A-Z</button>
+          <button class="sort-btn" data-sort="name-desc">Nome Z-A</button>
+          <button class="sort-btn" data-sort="price-desc">Pre&ccedil;o &darr;</button>
+          <button class="sort-btn" data-sort="price-asc">Pre&ccedil;o &uarr;</button>
+        </div>
+        <div id="collection-grid" class="collection-grid"></div>
+      </div>
+    </div>
+    <div class="panel-footer">
+      <button id="btn-scan-more" class="btn full">&#128247; Digitalizar Mais</button>
+      <div class="footer-row">
+        <button id="btn-export-json" class="btn primary half">&#128230; Exportar Backup</button>
+        <label class="btn half" style="cursor:pointer">&#128194; Importar Backup
+          <input type="file" id="file-import-json" accept=".json" hidden>
+        </label>
+      </div>
+      <div class="footer-row" style="margin-top:6px">
+        <button id="btn-clear" class="btn danger half">&#128465; Limpar Tudo</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="panel-help" class="slide-panel">
+    <div class="panel-handle"></div>
+    <div class="panel-header">
+      <h2>Ajuda e Defini&ccedil;&otilde;es</h2>
+      <button class="btn-close" id="close-help">&times;</button>
+    </div>
+    <div class="panel-body">
+      <section class="help-section">
+        <h3>&#128247; Como usar</h3>
+        <ol>
+          <li>Aponte a c&acirc;mara para uma carta Magic</li>
+          <li>Prima o bot&atilde;o de captura (c&iacute;rculo branco)</li>
+          <li>A imagem &eacute; enviada para OCR.space que tenta extrair o nome, expans&atilde;o e n&uacute;mero</li>
+          <li>Confirme ou corrija os dados manualmente</li>
+          <li>Prima "Pesquisar" para encontrar a carta na Scryfall API</li>
+          <li>Defina estado, idioma, pre&ccedil;o e quantidade</li>
+          <li>Prima "Adicionar &agrave; Lista"</li>
+        </ol>
+      </section>
+
+      <section class="help-section">
+        <h3>&#128273; API Key do OCR.space</h3>
+        <p>O OCR.space &eacute; o servi&ccedil;o que l&ecirc; o texto das imagens. Precisa de uma chave gratuita:</p>
+        <ol>
+          <li>Abra <a href="https://ocr.space/ocrapi" target="_blank" rel="noopener">ocr.space/ocrapi</a></li>
+          <li>Registe-se (email + palavra-passe)</li>
+          <li>A chave API ser&aacute; enviada para o seu email</li>
+          <li>Copie a chave e cole abaixo</li>
+        </ol>
+        <div class="field">
+          <label for="input-api-key">A sua API Key</label>
+          <div class="api-key-row">
+            <input type="text" id="input-api-key" placeholder="Cole a sua API key aqui">
+            <button id="btn-save-key" class="btn primary">Guardar</button>
+          </div>
+          <p class="field-hint">A chave fica guardada apenas neste telem&oacute;vel (localStorage).</p>
+        </div>
+        <div id="api-key-status" class="hidden"></div>
+      </section>
+
+      <section class="help-section">
+        <h3>&#9888; Limita&ccedil;&otilde;es</h3>
+        <ul>
+          <li><strong>Plano gratuito OCR.space:</strong> 10 requests/dia. Se exceder, a app avisa.</li>
+          <li><strong>Qualidade do OCR:</strong> cartas foil ou com texto dourado podem ter leitura incorreta.</li>
+          <li><strong>Scryfall API:</strong> gratuita mas com limite de 10 requests/s. Pode falhar em hora de pico.</li>
+          <li><strong>Conex&atilde;o:</strong> requer internet para OCR e pesquisa de cartas.</li>
+        </ul>
+      </section>
+
+      <section class="help-section">
+        <h3>&#128200; Backup / Restauro</h3>
+        <p>Use <strong>Exportar Backup</strong> para guardar toda a cole&ccedil;&atilde;o + chave API do OCR.space num ficheiro JSON. Depois pode <strong>Importar Backup</strong> noutro telem&oacute;vel para restaurar tudo.</p>
+      </section>
+
+      <section class="help-section">
+        <h3>&#128373; Privacidade</h3>
+        <p>As fotos que tira s&atilde;o enviadas para:</p>
+        <ul>
+          <li><strong>OCR.space</strong> &mdash; para reconhecimento de texto</li>
+          <li><strong>Scryfall API</strong> &mdash; para pesquisar detalhes das cartas</li>
+        </ul>
+        <p>Nenhuma imagem ou dado &eacute; guardado em servidores nossos. A sua API key do OCR.space fica apenas no seu dispositivo.</p>
+      </section>
+
+      <section class="help-section">
+        <h3>&#128220; Sobre o C&oacute;digo de Expans&atilde;o</h3>
+        <p>O OCR tenta detetar o c&oacute;digo de expans&atilde;o (ex: <code>MKM</code>, <code>BLB</code>, <code>WOE</code>) a partir do texto na base da carta. Se n&atilde;o for detetado automaticamente, pode escrev&ecirc;-lo manualmente no campo "Expans&atilde;o".</p>
+      </section>
+
+      <section class="help-section">
+        <h3>&#11088; Cr&eacute;ditos</h3>
+        <p>Hugo Cerqueira &mdash; ideias, prompts e testes no telem&oacute;vel.</p>
+        <p><a href="https://opencode.ai" target="_blank" rel="noopener">OpenCode</a> + <a href="https://deepseek.com" target="_blank" rel="noopener">DeepSeek Flash</a> &mdash; desenvolvimento do c&oacute;digo.</p>
+      </section>
+
+      <section class="help-section help-version">
+        <span>MTGScanner v<span id="app-version">1.0.0</span></span>
+      </section>
+    </div>
+  </div>
+
+  <div id="privacy-overlay" class="hidden">
+    <div class="privacy-modal">
+      <h2>&#128373; Privacidade</h2>
+      <p>O MTGScanner utiliza servi&ccedil;os externos para funcionar:</p>
+      <ul>
+        <li><strong>OCR.space</strong> &mdash; as fotos das cartas s&atilde;o enviadas para reconhecimento de texto</li>
+        <li><strong>Scryfall API</strong> &mdash; pesquisa detalhes das cartas (nome, expans&atilde;o, imagem)</li>
+      </ul>
+      <p>N&atilde;o guardamos qualquer dado nos nossos servidores. A sua chave API do OCR.space fica apenas no seu dispositivo.</p>
+      <p class="privacy-note">Ao continuar, confirma que compreende e aceita estas condi&ccedil;&otilde;es.</p>
+      <button id="btn-accept-privacy" class="btn primary full">Aceitar e Continuar</button>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+</div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
