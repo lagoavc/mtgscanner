@@ -1,4 +1,4 @@
-const CACHE = "mtgscanner-v1";
+const CACHE = "mtgscanner-v3";
 const URLS = [
   "index.html",
   "css/app.css",
@@ -42,8 +42,22 @@ self.addEventListener("fetch", e => {
     return;
   }
 
-  // JS and CSS: stale-while-revalidate
-  if (url.pathname.endsWith(".js") || url.pathname.endsWith(".css")) {
+  // HTML: network-first (always get latest, cache for offline)
+  if (url.pathname === "/" || url.pathname.endsWith(".html")) {
+    e.respondWith(
+      fetch(e.request).then(res => {
+        if (res.ok) {
+          const clone = res.clone();
+          caches.open(CACHE).then(cache => cache.put(e.request, clone));
+        }
+        return res;
+      }).catch(() => caches.match(e.request))
+    );
+    return;
+  }
+
+  // JS, CSS, JSON: stale-while-revalidate (fast, updates in background)
+  if (url.pathname.endsWith(".js") || url.pathname.endsWith(".css") || url.pathname.endsWith(".json")) {
     e.respondWith(
       caches.open(CACHE).then(cache =>
         cache.match(e.request).then(cached => {
@@ -58,7 +72,7 @@ self.addEventListener("fetch", e => {
     return;
   }
 
-  // Everything else: cache-first with network fallback
+  // Icons, images, manifest: cache-first with network fallback
   e.respondWith(
     caches.match(e.request).then(res => res || fetch(e.request))
   );

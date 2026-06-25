@@ -221,72 +221,50 @@ function parseOCROutput(text) {
     return y >= 1990 && y <= 2030;
   }
 
-  const footerStart = Math.max(0, lines.length - 3);
+  function collectNum(str) {
+    // tries to extract a collector number from a string
+    // handles: "123/280", "c0053", "u53", "r 123/280"
+    const clean = str.replace(/[cCuumMrR]\s*/, ''); // strip rarity prefix
+    let m = clean.match(/(\d{1,4})\s*\/\s*(\d{1,4})/);
+    if (m) return { num: m[1] + '/' + m[2], idx: m.index };
+    const norm = normalizeNumber(clean);
+    m = norm.match(/(\d{1,4})\s*\/\s*(\d{1,4})/);
+    if (m) return { num: m[1] + '/' + m[2], idx: m.index };
+    m = clean.match(/(\d{1,4})/);
+    if (m && !looksLikeYear(m[1])) return { num: m[1], idx: m.index };
+    return null;
+  }
 
-  // Search bottom-up, but only the last 3 lines for number/set
-  for (let i = lines.length - 1; i >= footerStart; i--) {
+  // Search the last 4 lines first (footer region)
+  const searchRange = Math.min(lines.length, 4);
+  for (let i = lines.length - 1; i >= lines.length - searchRange; i--) {
     const line = lines[i];
-    const upper = line.toUpperCase();
-    let m;
+    const cn = collectNum(line);
+    if (!cn) continue;
 
-    // 1) "123/280" with slash (most reliable)
-    m = line.match(/(\d{1,4})\s*\/\s*(\d{1,4})/);
-    if (!m) {
-      const norm = normalizeNumber(line);
-      m = norm.match(/(\d{1,4})\s*\/\s*(\d{1,4})/);
-    }
-    if (m) {
-      result.number = m[1] + '/' + m[2];
-      // set code after number
-      result.set = findSetCode(line.slice(m.index + m[0].length));
-      if (!result.set) result.set = findSetCode(line.slice(0, m.index));
-      if (!result.set) {
-        for (let off = 1; off <= 2; off++) {
-          for (const j of [i - off, i + off]) {
-            if (j < 0 || j >= lines.length) continue;
-            result.set = findSetCode(lines[j]);
-            if (result.set) break;
-          }
-          if (result.set) break;
-        }
-      }
-      break;
-    }
-
-    // 2) standalone number (2-4 digits, not a year like 2026)
-    m = line.match(/(\d{2,4})/);
-    if (m && !looksLikeYear(m[1])) {
-      const num = m[1];
-      // check this line for a set code
-      result.set = findSetCode(upper);
-      if (result.set) { result.number = num; break; }
-      // check adjacent lines in footer range
+    result.number = cn.num;
+    // set code on same line (after or before the number)
+    const after = line.slice(cn.idx + line.slice(cn.idx).match(/^[cCuumMrR]?\s*\S+/)?.[0]?.length || cn.idx + cn.num.length);
+    result.set = findSetCode(after) || findSetCode(line.slice(0, cn.idx));
+    // set code on adjacent lines
+    if (!result.set) {
       for (let off = 1; off <= 2; off++) {
         for (const j of [i - off, i + off]) {
-          if (j < footerStart || j >= lines.length) continue;
-          const s = findSetCode(lines[j]);
-          if (s) { result.number = num; result.set = s; break; }
+          if (j < 0 || j >= lines.length) continue;
+          result.set = findSetCode(lines[j]);
+          if (result.set) break;
         }
         if (result.set) break;
       }
-      if (result.set) break;
     }
+    break;
+  }
 
-    // 3) set code alone (check for a number nearby, within footer range)
-    const s = findSetCode(upper);
-    if (s) {
-      result.set = s;
-      for (let off = 1; off <= 2; off++) {
-        for (const j of [i - off, i + off]) {
-          if (j < footerStart || j >= lines.length) continue;
-          const nm = lines[j].match(/(\d{1,4})\s*\/\s*(\d{1,4})/);
-          if (nm) { result.number = nm[1] + '/' + nm[2]; break; }
-          const sn = lines[j].match(/(\d{2,4})/);
-          if (sn && !looksLikeYear(sn[1])) { result.number = sn[1]; break; }
-        }
-        if (result.number) break;
-      }
-      break;
+  // Fallback: if no number found in footer, try all lines
+  if (!result.number) {
+    for (let i = 0; i < lines.length; i++) {
+      const cn = collectNum(lines[i]);
+      if (cn) { result.number = cn.num; break; }
     }
   }
 
