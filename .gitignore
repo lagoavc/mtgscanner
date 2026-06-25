@@ -1,2 +1,5 @@
 server.js
 server.py
+__pycache__/
+*.pyc
+ocr.log
