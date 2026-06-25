@@ -234,11 +234,11 @@ function parseOCROutput(text) {
     }
   }
 
-  // Last resort: any 1+ digit sequence at all
+  // Last resort: any 2+ digit sequence (avoid mana cost "3" etc)
   if (!result.number) {
     for (let i = 0; i < lines.length; i++) {
       const stripped = lines[i].replace(/^[cCuumMrR]\s*/, '');
-      const m = stripped.match(/(\d+)/);
+      const m = stripped.match(/(\d{2,})/);
       if (m) { result.number = m[1]; break; }
     }
   }
