@@ -172,6 +172,8 @@ function parseCollectorNumber(raw) {
 function parseOCROutput(text) {
   const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
   const result = { name: text, number: '', set: '' };
+  if (lines.length === 0) return result;
+
   const knownSets = new Set([
     'MKM','BLB','WOE','LTR','ONE','BRO','DMU','SNC','NEO','MID','VOW',
     'STX','KHM','ZNR','IKO','THB','ELD','MH3','MH2','MH1','CLB','CN2',
@@ -190,25 +192,21 @@ function parseOCROutput(text) {
     'CON','ARB','EVE','SHM','MOR','LRW','PC2','HOP','FVD','DD3','DDN',
     'DDM','DDL','DDK','DDJ','DDI','DDH','DDG','DDF','DDE','DDD','DDC',
     'GVL','MUL','BLC','YDM','TD0','TD1','TD2','TD3','TD4','TD5','PIO',
-    'CLU','BLM','DSK','DSC','DFT','OTJ','MKM','M3C','RAV','FDN','J25',
-    'PIP','WHO','LTC','CMM','ONE','BRO','DMU','SNC','NEO','MID','VOW',
+    'CLU','BLM','DSK','DSC','DFT','OTJ','M3C','FDN','J25',
     'Y23','Y22','Y21','Y20','Y19','Y18','Y17','Y16','Y15','Y14','Y13',
     'Y12','Y11','Y10','Y09','Y08','Y07','Y06','Y05','Y04','Y03','HPX',
-    'DKM','TDM','DFT','FDN','PST','MKC','PIP','WHO','LTC','TSC',
-    'TMP','ATQ','LEG','DRK','FEM','HML','ICE','ALL','MIR','VIS','WTH',
-    'TBN','EXO','USG','ULG','UDS','MMQ','NEM','PCY','INV','PLS','APC',
-    'ODY','TOR','JUD','ONS','LGN','SCG','MRD','DST','5DN','CHK','BOK',
-    'SOK','RAV','GPT','DIS','TSP','TSB','PLC','FUT','10E','LRW','MOR',
-    'SHM','EVE','ALA','CON','ARB','M10','ZEN','WWK','ROE','M11','SOM',
+    'DKM','TDM','DFT','FDN','PST','MKC','TSC',
+    'TMP','ATQ','DRK','FEM','HML','MIR','VIS','WTH',
+    'TBN','EXO','MRD','DST','5DN','TSB',
+    'SHM','EVE','M10','ZEN','WWK','ROE','M11','SOM',
     'MBS','NPH','M12','ISD','DKA','AVR','M13','RTR','GTC','DGM','M14',
     'THS','BNG','JOU','M15','KTK','FRF','DTK','ORI','BFZ','OGW','SOI',
     'EMN','KLD','AER','AKH','HOU','XLN','RIX','DOM','GRN','RNA','WAR',
-    'M20','ELD','THB','IKO','M21','ZNR','KHM','STX','AFR','MID','VOW',
-    'NEO','SNC','DMU','BRO','ONE','MOM','MAT','WOE','LTR','MKM','OTJ',
-    'BLB','DSK','DSC','FDN','DFT','TDM','PST','EDG','J25','DKM'
+    'M20','ELD','THB','IKO','M21','ZNR','KHM','STX','AFR',
+    'NEO','SNC','DMU','BRO','MOM','MAT','WOE','LTR','OTJ',
+    'BLB','DSK','DSC','DFT','TDM','PST','EDG','DKM'
   ]);
 
-  // helper: find a known set code in a string
   function findSetCode(str) {
     const codes = str.toUpperCase().match(/([A-Z]{2,5})/g);
     if (!codes) return '';
@@ -218,33 +216,33 @@ function parseOCROutput(text) {
     return '';
   }
 
-  // Search from bottom to top — collector info is at the bottom
-  for (let i = lines.length - 1; i >= 0; i--) {
+  function looksLikeYear(n) {
+    const y = parseInt(n, 10);
+    return y >= 1990 && y <= 2030;
+  }
+
+  const footerStart = Math.max(0, lines.length - 3);
+
+  // Search bottom-up, but only the last 3 lines for number/set
+  for (let i = lines.length - 1; i >= footerStart; i--) {
     const line = lines[i];
     const upper = line.toUpperCase();
     let m;
 
-    // 1) Try "123/280" or "123 / 280" (with slash)
+    // 1) "123/280" with slash (most reliable)
     m = line.match(/(\d{1,4})\s*\/\s*(\d{1,4})/);
     if (!m) {
       const norm = normalizeNumber(line);
       m = norm.match(/(\d{1,4})\s*\/\s*(\d{1,4})/);
     }
-
     if (m) {
       result.number = m[1] + '/' + m[2];
-      // Look for set code after the number on same line
-      const afterStr = line.slice(m.index + m[0].length);
-      result.set = findSetCode(afterStr);
-      // Look for set code before the number
+      // set code after number
+      result.set = findSetCode(line.slice(m.index + m[0].length));
+      if (!result.set) result.set = findSetCode(line.slice(0, m.index));
       if (!result.set) {
-        const beforeStr = line.slice(0, m.index);
-        result.set = findSetCode(beforeStr);
-      }
-      // Look on adjacent lines
-      if (!result.set) {
-        for (let offset = 1; offset <= 3; offset++) {
-          for (const j of [i - offset, i + offset]) {
+        for (let off = 1; off <= 2; off++) {
+          for (const j of [i - off, i + off]) {
             if (j < 0 || j >= lines.length) continue;
             result.set = findSetCode(lines[j]);
             if (result.set) break;
@@ -255,20 +253,17 @@ function parseOCROutput(text) {
       break;
     }
 
-    // 2) No slash found — try to match a standalone number with a set code nearby
-    m = line.match(/(\d{2,4})/);
-    if (m) {
+    // 2) standalone number (only 2-3 digits, not a year)
+    m = line.match(/(\d{2,3})/);
+    if (m && !looksLikeYear(m[1])) {
       const num = m[1];
       // check this line for a set code
       result.set = findSetCode(upper);
-      if (result.set) {
-        result.number = num;
-        break;
-      }
-      // check adjacent lines
-      for (let offset = 1; offset <= 3; offset++) {
-        for (const j of [i - offset, i + offset]) {
-          if (j < 0 || j >= lines.length) continue;
+      if (result.set) { result.number = num; break; }
+      // check adjacent lines in footer range
+      for (let off = 1; off <= 2; off++) {
+        for (const j of [i - off, i + off]) {
+          if (j < footerStart || j >= lines.length) continue;
           const s = findSetCode(lines[j]);
           if (s) { result.number = num; result.set = s; break; }
         }
@@ -277,16 +272,17 @@ function parseOCROutput(text) {
       if (result.set) break;
     }
 
-    // 3) No number — check if this line has a set code
+    // 3) set code alone (check for a number nearby, within footer range)
     const s = findSetCode(upper);
     if (s) {
       result.set = s;
-      // look for a number on adjacent lines
-      for (let offset = 1; offset <= 2; offset++) {
-        for (const j of [i - offset, i + offset]) {
-          if (j < 0 || j >= lines.length) continue;
-          const nm = lines[j].match(/(\d{1,4})\s*\/?\s*(\d{1,4})/);
-          if (nm) { result.number = nm[1] + (nm[2] ? '/' + nm[2] : ''); break; }
+      for (let off = 1; off <= 2; off++) {
+        for (const j of [i - off, i + off]) {
+          if (j < footerStart || j >= lines.length) continue;
+          const nm = lines[j].match(/(\d{1,4})\s*\/\s*(\d{1,4})/);
+          if (nm) { result.number = nm[1] + '/' + nm[2]; break; }
+          const sn = lines[j].match(/(\d{2,3})/);
+          if (sn && !looksLikeYear(sn[1])) { result.number = sn[1]; break; }
         }
         if (result.number) break;
       }
