@@ -230,10 +230,12 @@ function parseOCROutput(text) {
     const norm = normalizeNumber(clean);
     m = norm.match(/(\d{1,4})\s*\/\s*(\d{1,4})/);
     if (m) return { num: m[1] + '/' + m[2], idx: m.index };
-    m = clean.match(/(\d{1,4})/);
+    m = norm.match(/(\d{1,4})/);
     if (m && !looksLikeYear(m[1])) return { num: m[1], idx: m.index };
     return null;
   }
+
+  console.log('[parseOCROutput] lines:', lines);
 
   // Search the last 4 lines first (footer region)
   const searchRange = Math.min(lines.length, 4);
@@ -670,7 +672,7 @@ $('btn-capture').addEventListener('click', async () => {
       const lines = ocr.name.split('\n').map(l => l.trim()).filter(Boolean);
       for (const l of lines) {
         const clean = l.replace(/[^A-Za-zÀ-ÿ0-9\s\-'.,!]/g, '').trim();
-        if (!clean || clean.length < 3 || /^\d+$/.test(clean)) continue;
+        if (!clean || clean.length < 3 || /^\d+$/.test(clean) || /^[cCuumMrR]\d+$/.test(clean)) continue;
         if (clean.split(' ').length > 6) continue;
         $('field-name').value = clean;
         break;
@@ -741,7 +743,7 @@ $('file-input').addEventListener('change', async (e) => {
       let cardName = '';
       for (const l of nameLines) {
         const clean = l.replace(/[^A-Za-zÀ-ÿ0-9\s\-'.]/g, '').trim();
-        if (!clean || clean.length < 3 || /^\d+$/.test(clean)) continue;
+        if (!clean || clean.length < 3 || /^\d+$/.test(clean) || /^[cCuumMrR]\d+$/.test(clean)) continue;
         if (clean.split(' ').length > 6) continue;
         cardName = clean;
         break;
