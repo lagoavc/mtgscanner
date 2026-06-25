@@ -188,48 +188,6 @@ function parseOCROutput(text) {
   const result = { name: text, number: '', set: '' };
   if (lines.length === 0) return result;
 
-  const knownSets = new Set([
-    'MKM','BLB','WOE','LTR','ONE','BRO','DMU','SNC','NEO','MID','VOW',
-    'STX','KHM','ZNR','IKO','THB','ELD','MH3','MH2','MH1','CLB','CN2',
-    'CMM','LTC','PIP','WHO','40K','SCD','J25','BIG','HBG','AFR','DMC',
-    'MAT','BRR','SPG','SLD','MOC','NCC','YCC','SIR','STA','TSR','UMA',
-    'A25','IMA','MM3','MM2','MM1','2XM','CMR','C19','C20','C21','C22',
-    'C23','JMP','ANB','MB1','PLS','APC','INV','MMQ','NEM','PCY','SMM',
-    'BTD','CONF','DMR','30A','DRC','LCC','RVR','REX','PRM','FUT','PLC',
-    'TSP','DIS','GPT','RAV','CHK','BOK','SOK','ONS','LGN','SCG','JUD',
-    'TOR','ODY','APC','PLS','INV','MMQ','NEM','PCY','S99','S00','S01',
-    'USG','ULG','UDS','EXO','TMP','STH','WTH','POR','P02','P03','PTK',
-    'ICE','ALL','HLM','DRK','LEG','ATQ','ARN','LEA','LEB','2ED','3ED',
-    '4ED','5ED','6ED','7ED','8ED','9ED','10E','M10','M11','M12','M13',
-    'M14','M15','M19','M20','M21','ORI','JOU','BNG','THS','DGM','GTC',
-    'RTR','AVR','DKA','ISD','NPH','MBS','SOM','ROE','WWK','ZEN','ALA',
-    'CON','ARB','EVE','SHM','MOR','LRW','PC2','HOP','FVD','DD3','DDN',
-    'DDM','DDL','DDK','DDJ','DDI','DDH','DDG','DDF','DDE','DDD','DDC',
-    'GVL','MUL','BLC','YDM','TD0','TD1','TD2','TD3','TD4','TD5','PIO',
-    'CLU','BLM','DSK','DSC','DFT','OTJ','M3C','FDN','J25',
-    'Y23','Y22','Y21','Y20','Y19','Y18','Y17','Y16','Y15','Y14','Y13',
-    'Y12','Y11','Y10','Y09','Y08','Y07','Y06','Y05','Y04','Y03','HPX',
-    'DKM','TDM','DFT','FDN','PST','MKC','TSC',
-    'TMP','ATQ','DRK','FEM','HML','MIR','VIS','WTH',
-    'TBN','EXO','MRD','DST','5DN','TSB',
-    'SHM','EVE','M10','ZEN','WWK','ROE','M11','SOM',
-    'MBS','NPH','M12','ISD','DKA','AVR','M13','RTR','GTC','DGM','M14',
-    'THS','BNG','JOU','M15','KTK','FRF','DTK','ORI','BFZ','OGW','SOI',
-    'EMN','KLD','AER','AKH','HOU','XLN','RIX','DOM','GRN','RNA','WAR',
-    'M20','ELD','THB','IKO','M21','ZNR','KHM','STX','AFR',
-    'NEO','SNC','DMU','BRO','MOM','MAT','WOE','LTR','OTJ',
-    'BLB','DSK','DSC','DFT','TDM','PST','EDG','DKM'
-  ]);
-
-  function findSetCode(str) {
-    const codes = str.toUpperCase().match(/([A-Z]{2,5})/g);
-    if (!codes) return '';
-    for (const c of codes) {
-      if (knownSets.has(c)) return c;
-    }
-    return '';
-  }
-
   function looksLikeYear(n) {
     const y = parseInt(n, 10);
     return y >= 1990 && y <= 2030;
@@ -255,28 +213,16 @@ function parseOCROutput(text) {
 
   console.log('[parseOCROutput] lines:', lines);
 
-  // Search the last 4 lines first (footer region)
+  // Search the last 4 lines first (footer region), top-down
+  // MTG footer order: collector-number (+set) ABOVE copyright line.
+  // Bottom-up would hit copyright first (e.g. "C3020 Viacom" → "3020").
   const searchRange = Math.min(lines.length, 4);
-  for (let i = lines.length - 1; i >= lines.length - searchRange; i--) {
+  for (let i = lines.length - searchRange; i < lines.length; i++) {
     const line = lines[i];
     const cn = collectNum(line);
     if (!cn) continue;
 
     result.number = cn.num;
-    // set code on same line (after or before the number)
-    const after = line.slice(cn.idx + line.slice(cn.idx).match(/^[cCuumMrR]?\s*\S+/)?.[0]?.length || cn.idx + cn.num.length);
-    result.set = findSetCode(after) || findSetCode(line.slice(0, cn.idx));
-    // set code on adjacent lines
-    if (!result.set) {
-      for (let off = 1; off <= 2; off++) {
-        for (const j of [i - off, i + off]) {
-          if (j < 0 || j >= lines.length) continue;
-          result.set = findSetCode(lines[j]);
-          if (result.set) break;
-        }
-        if (result.set) break;
-      }
-    }
     break;
   }
 
@@ -707,8 +653,7 @@ $('btn-capture').addEventListener('click', async () => {
     }
     if (ocr && ocr.number) {
       $('field-number').value = ocr.number;
-      if (ocr.set) $('field-set').value = ocr.set;
-      searchByNumber(ocr.number, ocr.set, $('field-name').value);
+      searchByNumber(ocr.number, '', $('field-name').value);
       toast(`🔍 OCR: ${$('field-name').value || 'nº ' + ocr.number}`);
     } else if (ocr && !ocr.number) {
       toast('📄 OCR não encontrou nº de carta. Escreve o nome.');
@@ -778,9 +723,8 @@ $('file-input').addEventListener('change', async (e) => {
       if (cardName) $('field-name').value = cardName;
       if (ocr && ocr.number) {
         $('field-number').value = ocr.number;
-        if (ocr.set) $('field-set').value = ocr.set;
         toast(`🔍 OCR: ${cardName || 'nº ' + ocr.number}`);
-        searchByNumber(ocr.number, ocr.set, cardName);
+        searchByNumber(ocr.number, '', cardName);
       } else if (ocr && !ocr.number) {
         toast('📄 OCR não encontrou nº de carta. Escreve o nome.');
       } else {
