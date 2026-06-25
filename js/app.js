@@ -194,42 +194,106 @@ function parseOCROutput(text) {
     'PIP','WHO','LTC','CMM','ONE','BRO','DMU','SNC','NEO','MID','VOW',
     'Y23','Y22','Y21','Y20','Y19','Y18','Y17','Y16','Y15','Y14','Y13',
     'Y12','Y11','Y10','Y09','Y08','Y07','Y06','Y05','Y04','Y03','HPX',
-    'DKM','TDM','DFT','FDN','PST','MKC','PIP','WHO','LTC','TSC'
+    'DKM','TDM','DFT','FDN','PST','MKC','PIP','WHO','LTC','TSC',
+    'TMP','ATQ','LEG','DRK','FEM','HML','ICE','ALL','MIR','VIS','WTH',
+    'TBN','EXO','USG','ULG','UDS','MMQ','NEM','PCY','INV','PLS','APC',
+    'ODY','TOR','JUD','ONS','LGN','SCG','MRD','DST','5DN','CHK','BOK',
+    'SOK','RAV','GPT','DIS','TSP','TSB','PLC','FUT','10E','LRW','MOR',
+    'SHM','EVE','ALA','CON','ARB','M10','ZEN','WWK','ROE','M11','SOM',
+    'MBS','NPH','M12','ISD','DKA','AVR','M13','RTR','GTC','DGM','M14',
+    'THS','BNG','JOU','M15','KTK','FRF','DTK','ORI','BFZ','OGW','SOI',
+    'EMN','KLD','AER','AKH','HOU','XLN','RIX','DOM','GRN','RNA','WAR',
+    'M20','ELD','THB','IKO','M21','ZNR','KHM','STX','AFR','MID','VOW',
+    'NEO','SNC','DMU','BRO','ONE','MOM','MAT','WOE','LTR','MKM','OTJ',
+    'BLB','DSK','DSC','FDN','DFT','TDM','PST','EDG','J25','DKM'
   ]);
 
-  for (let i = 0; i < lines.length; i++) {
-    let line = lines[i];
-    let m = line.match(/(\d{1,4}\s*\/\s*\d{1,4})/);
-    if (!m) {
-      const normalized = normalizeNumber(line);
-      m = normalized.match(/(\d{1,4}\s*\/\s*\d{1,4})/);
+  // helper: find a known set code in a string
+  function findSetCode(str) {
+    const codes = str.toUpperCase().match(/([A-Z]{2,5})/g);
+    if (!codes) return '';
+    for (const c of codes) {
+      if (knownSets.has(c)) return c;
     }
-    if (!m) continue;
-    result.number = m[1].replace(/\s+/g, '');
+    return '';
+  }
 
-    const afterNum = line.slice(m.index + m[0].length).toUpperCase();
-    const codes = afterNum.match(/([A-Z]{2,5})/g);
-    if (codes) {
-      for (const c of codes) {
-        if (knownSets.has(c)) { result.set = c; break; }
-      }
+  // Search from bottom to top — collector info is at the bottom
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = lines[i];
+    const upper = line.toUpperCase();
+    let m;
+
+    // 1) Try "123/280" or "123 / 280" (with slash)
+    m = line.match(/(\d{1,4})\s*\/\s*(\d{1,4})/);
+    if (!m) {
+      const norm = normalizeNumber(line);
+      m = norm.match(/(\d{1,4})\s*\/\s*(\d{1,4})/);
     }
-    if (!result.set) {
-      for (let offset = 1; offset <= 3; offset++) {
-        for (const j of [i - offset, i + offset]) {
-          if (j < 0 || j >= lines.length || j === i) continue;
-          const codes = lines[j].toUpperCase().match(/([A-Z]{2,5})/g);
-          if (!codes) continue;
-          for (const c of codes) {
-            if (knownSets.has(c)) { result.set = c; break; }
+
+    if (m) {
+      result.number = m[1] + '/' + m[2];
+      // Look for set code after the number on same line
+      const afterStr = line.slice(m.index + m[0].length);
+      result.set = findSetCode(afterStr);
+      // Look for set code before the number
+      if (!result.set) {
+        const beforeStr = line.slice(0, m.index);
+        result.set = findSetCode(beforeStr);
+      }
+      // Look on adjacent lines
+      if (!result.set) {
+        for (let offset = 1; offset <= 3; offset++) {
+          for (const j of [i - offset, i + offset]) {
+            if (j < 0 || j >= lines.length) continue;
+            result.set = findSetCode(lines[j]);
+            if (result.set) break;
           }
           if (result.set) break;
         }
+      }
+      break;
+    }
+
+    // 2) No slash found — try to match a standalone number with a set code nearby
+    m = line.match(/(\d{2,4})/);
+    if (m) {
+      const num = m[1];
+      // check this line for a set code
+      result.set = findSetCode(upper);
+      if (result.set) {
+        result.number = num;
+        break;
+      }
+      // check adjacent lines
+      for (let offset = 1; offset <= 3; offset++) {
+        for (const j of [i - offset, i + offset]) {
+          if (j < 0 || j >= lines.length) continue;
+          const s = findSetCode(lines[j]);
+          if (s) { result.number = num; result.set = s; break; }
+        }
         if (result.set) break;
       }
+      if (result.set) break;
     }
-    break;
+
+    // 3) No number — check if this line has a set code
+    const s = findSetCode(upper);
+    if (s) {
+      result.set = s;
+      // look for a number on adjacent lines
+      for (let offset = 1; offset <= 2; offset++) {
+        for (const j of [i - offset, i + offset]) {
+          if (j < 0 || j >= lines.length) continue;
+          const nm = lines[j].match(/(\d{1,4})\s*\/?\s*(\d{1,4})/);
+          if (nm) { result.number = nm[1] + (nm[2] ? '/' + nm[2] : ''); break; }
+        }
+        if (result.number) break;
+      }
+      break;
+    }
   }
+
   return result;
 }
 
